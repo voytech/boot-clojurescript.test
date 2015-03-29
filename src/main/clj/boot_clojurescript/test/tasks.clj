@@ -14,20 +14,24 @@
 (defn- test-paths[]
   (core/get-env :test-paths))
 
+(defn- test-paths-abs []
+  (map #(str (System/getProperty "user.dir") "/" %)  (test-paths))
+)
+
 (core/deftask gen-test-edn
   "Tasks generates test.cljs.edn which requires all other source namespaces pointed
    by other.edn files. This task is a bootstrap for testing facility by
    providing edn which in turn helps to create loader script for test scripts."
-  [ns namespaces NAMESPACES #{sym} "A list of test namespaces to include in tests"]
+ ;; []
+  [n namespaces NAMESPACES #{sym} "A list of test namespaces to include in tests"]
    (core/with-pre-wrap fileset
-     (let [test-edn-dir (core/temp-dir!)
-           test-files   (core/temp-dir!)]
+     (let [test-edn-dir (core/temp-dir!)]
        (core/empty-dir! test-edn-dir)
-       (core/empty-dir! test-files)
        (let [{:keys [main cljs]} (deps/scan-fileset fileset)
              test-edn-file (doto (io/file test-edn-dir "test.cljs.edn") (io/make-parents))]
-           (->> (if (seq main) (concat main namespaces) (concat cljs namespaces))
+           (->> (if (seq main) main cljs)
                 (mapv #(comp symbol util/path->ns assert-cljs core/tmppath));;is util/path->ns worsk to edn ?
+                (concat namespaces)
                 (assoc {} :require)
                 (spit test-edn-file))
            (-> fileset
@@ -45,13 +49,20 @@
    fileset
     )
 
+(defn debug-tmpdir [tmpdir]
+  (doseq [fl (file-seq (io/file tmpdir))]
+    (println (str "*tmpdir* " fl))))
+
 (core/deftask fileset-add-tests []
  (let [test-dir (core/temp-dir!)]   ;; create temp-dir for test sources
      (core/with-pre-wrap fileset   ;; first append test namespaces to file set.
             (core/empty-dir! test-dir) ;; ensure it is empty
-            (map #(file/copy-files % test-dir) (test-paths)) ;; just file system copy
-            (core/add-source fileset test-dir) ;; add test source directory to fileset
-            (core/commit! fileset)                     ;; commit to fileset
+            (doseq [path (test-paths)]
+              (file/copy-files path test-dir)) ;; just file system copy
+            (debug-tmpdir test-dir)
+            (-> fileset
+                (core/add-source test-dir) ;; add test source directory to fileset
+                core/commit!)                     ;; commit to fileset
             )))
 
 (defn absolute-tmp-path [file]
@@ -59,29 +70,26 @@
        ((juxt core/tmpdir core/tmppath))
        (clojure.string/join "/")))
 
+(defn- file-tmp-path [inputs-fileset name]
+  (->> inputs-fileset
+       (core/by-name [name])
+       first
+       absolute-tmp-path))
+
 (core/deftask test-runner
-  [sv slimer-version VERSION str "A version of slimer.js"]
-  ;; find slimerjs.sh
-  ;; find runner.js
-  ;; find test.js - get path
-  ;; sh slimerjs.sh runnerj.js test.js
+  [sv slimer-version VERSION str   "A version of slimer.js"
+   ns namespaces NAMESPACES #{sym} "A set of test namespaces"]
   (core/with-pre-wrap fileset
     (let [inputs (core/input-files fileset)
-          test-engine-dir (->> inputs
-                               (core/by-name ["slimerjs"])
-                               first
-                               absolute-tmp-path)
-          test-runner-dir (->> inputs
-                               (core/by-name ["runner.js"])
-                               first
-                               absolute-tmp-path)
-          test-sources ["to" "be" "done"]]
-
+          test-engine-dir (file-tmp-path inputs "slimerjs")
+          test-runner-dir (file-tmp-path inputs "runner.js")
+          test-sources    (file-tmp-path "test.js")]
       (println (str "test engine:" test-engine-dir))
       (println (str "test runner:" test-runner-dir))
-      (let [result (sh test-engine-dir
-                       test-runner-dir
-                       (apply str test-sources))]
+      (println (str "test sources:" test-sources))
+      (let [result (util/sh test-engine-dir
+                            test-runner-dir
+                            (apply str test-sources))]
         (println (:out result))
         )
       )))
@@ -102,8 +110,8 @@
   [ns namespaces NAMESPACES #{sym} "A list of test namespaces to include in tests"]
     (comp
      (fileset-add-tests) ;; add test sources to fileset
-     (gen-test-edn) ;; generate edn files and add to file set
-     (cljs)  ;; clojure script compile with test namespaces appended.
-     (test-runner) ;; run tests
+     (gen-test-edn)      ;; generate edn files and add to file set
+     (cljs)              ;; clojurescript compile with test namespaces appended.
+     (test-runner)       ;; run tests on slimerjs runner.
      )
 )

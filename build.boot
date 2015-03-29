@@ -1,7 +1,7 @@
  (set-env!
   :source-paths #{ "src/main/clj" "src/main/cljs" }
   :resource-paths #{ "resources" }
- ;; :test-paths     #{ "src/tests/cljs" }
+  :test-paths     #{ "src/tests/cljs" }
   :dependencies   '[
                     [org.clojure/clojure               "1.6.0" :scope "provided"]
                     [boot/core                         "2.0.0-rc12" :scope "provided"]
@@ -25,7 +25,8 @@
       :version     +version+
       :description "Boot task to test ClojureScript namespaces using cemerick's clojurescript.test port."
       }
- test-runner {:slimer-version "0.9.5"})
+ test-runner  {:slimer-version "0.9.5"}
+ gen-test-edn {:namespaces #{'mock.sample-test}})
 
 (deftask fileset-log []
   (with-pre-wrap fileset
@@ -47,3 +48,11 @@
 (deftask add-tests-to-fileset []
   (set-env! :resource-paths #{"resources"}) ;;something apparently adds src to resrouce-paths - beat it.
   (comp (fileset-log) (fileset-add-tests) (fileset-log)))
+
+(deftask generate-edn []
+   (set-env! :resource-paths #{"resources"}) ;;something apparently adds src to resrouce-paths - beat it.
+   (comp (fileset-log)
+         (fileset-add-tests)
+         (fileset-log)
+         (gen-test-edn)
+         (fileset-log)))
