@@ -18,26 +18,30 @@
   (map #(str (System/getProperty "user.dir") "/" %)  (test-paths))
 )
 
+;; (core/deftask sample "Opis"  [n namespaces NAMESPACES #{sym} "A list of test namespaces to include in tests"]
+;;   (core/with-pre-wrap fileset
+;;     (println (str "nsmp" namespaces))
+;;     fileset))
+
 (core/deftask gen-test-edn
   "Tasks generates test.cljs.edn which requires all other source namespaces pointed
    by other.edn files. This task is a bootstrap for testing facility by
    providing edn which in turn helps to create loader script for test scripts."
- ;; []
   [n namespaces NAMESPACES #{sym} "A list of test namespaces to include in tests"]
-   (core/with-pre-wrap fileset
-     (let [test-edn-dir (core/temp-dir!)]
-       (core/empty-dir! test-edn-dir)
-       (let [{:keys [main cljs]} (deps/scan-fileset fileset)
-             test-edn-file (doto (io/file test-edn-dir "test.cljs.edn") (io/make-parents))]
-           (->> (if (seq main) main cljs)
-                (mapv #(comp symbol util/path->ns assert-cljs core/tmppath));;is util/path->ns worsk to edn ?
-                (concat namespaces)
-                (assoc {} :require)
-                (spit test-edn-file))
-           (-> fileset
-               (core/add-source test-edn-dir)
-                core/commit!))))
-)
+  (let [test-edn-dir (core/temp-dir!)]
+    (core/with-pre-wrap fileset
+      (core/empty-dir! test-edn-dir)
+      (let [{:keys [main cljs]} (deps/scan-fileset fileset)
+            test-edn-file (doto (io/file test-edn-dir "test.cljs.edn") (io/make-parents))]
+        (->> (if (seq main) main cljs)
+             (mapv #((comp symbol util/path->ns assert-cljs core/tmppath) %)) ;;is util/path->ns worsk to edn ?
+             (concat namespaces)
+             (assoc {} :require)
+             (spit test-edn-file))
+        (-> fileset
+            (core/add-resource test-edn-dir)
+            core/commit!))))
+  )
 
 (core/deftask scaffold[ns namespaces NAMESPACES #{sym} "A list of test namespaces to include in tests"]
 ;;Read file from resource .

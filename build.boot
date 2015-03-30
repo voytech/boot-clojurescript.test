@@ -20,13 +20,7 @@
 
 (bootlaces! +version+)
 
-(task-options!
- pom {:project     'voytech/boot-cemerick-clojurescript-test
-      :version     +version+
-      :description "Boot task to test ClojureScript namespaces using cemerick's clojurescript.test port."
-      }
- test-runner  {:slimer-version "0.9.5"}
- gen-test-edn {:namespaces #{'mock.sample-test}})
+(declare generate-edn)
 
 (deftask fileset-log []
   (with-pre-wrap fileset
@@ -55,4 +49,13 @@
          (fileset-add-tests)
          (fileset-log)
          (gen-test-edn)
-         (fileset-log)))
+         (fileset-log))
+   )
+
+(task-options!
+ pom {:project     'voytech/boot-cemerick-clojurescript-test
+      :version     +version+
+      :description "Boot task to test ClojureScript namespaces using cemerick's clojurescript.test port."
+      }
+ test-runner  {:slimer-version "0.9.5"}
+ gen-test-edn {:namespaces #{'mock.sample-test}})
