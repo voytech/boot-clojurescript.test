@@ -36,6 +36,7 @@
         (->> (if (seq main) main cljs)
              (mapv #((comp symbol util/path->ns assert-cljs core/tmppath) %)) ;;is util/path->ns worsk to edn ?
              (concat namespaces)
+             (apply vector)
              (assoc {} :require)
              (spit test-edn-file))
         (-> fileset
