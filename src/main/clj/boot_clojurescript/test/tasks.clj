@@ -11,6 +11,11 @@
     (.replaceAll path "\\.cljs.edn$" ".cljs")
     path))
 
+(defn cljs-path->ns [path]
+  (-> (assert-cljs path)
+      (.replaceAll "\\.cljs$" ""))
+)
+
 (defn- test-paths[]
   (core/get-env :test-paths))
 
@@ -34,9 +39,10 @@
       (let [{:keys [main cljs]} (deps/scan-fileset fileset)
             test-edn-file (doto (io/file test-edn-dir "test.cljs.edn") (io/make-parents))]
         (->> (if (seq main) main cljs)
-             (mapv #((comp symbol util/path->ns assert-cljs core/tmppath) %)) ;;is util/path->ns worsk to edn ?
-             (concat namespaces)
-             (apply vector)
+             (mapv #((comp symbol util/path->ns cljs-path->ns core/tmppath) %))
+             (concat namespaces) ;;include ns for compilation if not included already
+             (set)          ;;distinct element required.
+             (apply vector) ;;I think edn expects namespaces to be defined as vector.
              (assoc {} :require)
              (spit test-edn-file))
         (-> fileset

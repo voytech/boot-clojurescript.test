@@ -14,7 +14,9 @@
 (require '[adzerk.bootlaces :refer :all]
          '[boot-clojurescript.test.tasks :refer :all]
          '[boot.core :refer :all]
-         '[clojure.walk :refer :all])
+         '[clojure.walk :refer :all]
+         '[adzerk.boot-cljs :refer  :all]
+)
 
 (def +version+ "0.1.0-SNAPSHOT")
 
@@ -43,14 +45,16 @@
   (set-env! :resource-paths #{"resources"}) ;;something apparently adds src to resrouce-paths - beat it.
   (comp (fileset-log) (fileset-add-tests) (fileset-log)))
 
-(deftask generate-edn []
+(deftask compile-edn []
    (set-env! :resource-paths #{"resources"}) ;;something apparently adds src to resrouce-paths - beat it.
    (comp (fileset-log)
          (fileset-add-tests)
          (fileset-log)
          (gen-test-edn)
-         (fileset-log))
-   )
+         (fileset-log)
+         (cljs)  ;;ehh compile try it well.
+         (fileset-log) ;;wonder what is the output ?
+         ))
 
 (task-options!
  pom {:project     'voytech/boot-cemerick-clojurescript-test
