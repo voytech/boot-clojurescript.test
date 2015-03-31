@@ -4,6 +4,7 @@
             [adzerk.boot-cljs :refer  :all]
             [adzerk.boot-cljs.js-deps :as deps]
             [clojure.java.io :as io]
+            [clojure.java.shell :as shell]
             [boot.util :as util]))
 
 (defn assert-cljs [path]
@@ -41,12 +42,12 @@
         (->> (if (seq main) main cljs)
              (mapv #((comp symbol util/path->ns cljs-path->ns core/tmppath) %))
              (concat namespaces) ;;include ns for compilation if not included already
-             (set)          ;;distinct element required.
-             (apply vector) ;;I think edn expects namespaces to be defined as vector.
+             (set)               ;;distinct elements required.
+             (apply vector)      ;;I think .edn expects namespaces to be defined as vector.
              (assoc {} :require)
              (spit test-edn-file))
         (-> fileset
-            (core/add-resource test-edn-dir)
+            (core/add-resource test-edn-dir) ;;I do not know what to choose add-source or add-resource
             core/commit!))))
   )
 
@@ -65,8 +66,8 @@
     (println (str "*tmpdir* " fl))))
 
 (core/deftask fileset-add-tests []
- (let [test-dir (core/temp-dir!)]   ;; create temp-dir for test sources
-     (core/with-pre-wrap fileset   ;; first append test namespaces to file set.
+ (let [test-dir (core/temp-dir!)]      ;; create temp-dir for test sources
+     (core/with-pre-wrap fileset       ;; first append test namespaces to file set.
             (core/empty-dir! test-dir) ;; ensure it is empty
             (doseq [path (test-paths)]
               (file/copy-files path test-dir)) ;; just file system copy
@@ -87,23 +88,31 @@
        first
        absolute-tmp-path))
 
+(defn- make-executable [app]
+  (shell/sh "chmod" "777" app)
+)
+
 (core/deftask test-runner
-  [sv slimer-version VERSION str   "A version of slimer.js"
+  [sv slimer-version VERSION str   "A version of slimer.js"  ;;I doubt I really need that!
    ns namespaces NAMESPACES #{sym} "A set of test namespaces"]
   (core/with-pre-wrap fileset
     (let [inputs (core/input-files fileset)
-          test-engine-dir (file-tmp-path inputs "slimerjs")
-          test-runner-dir (file-tmp-path inputs "runner.js")
-          test-sources    (file-tmp-path "test.js")]
-      (println (str "test engine:" test-engine-dir))
-      (println (str "test runner:" test-runner-dir))
+          test-engine     (file-tmp-path inputs "slimerjs")   ;;hard-coded name! subject to improve!
+          test-runner     (file-tmp-path inputs "runner.js")  ;;hard-coded name! subject to improve!
+          test-sources    (file-tmp-path inputs "test.js")]          ;;hard-coded name! subject to improve!
+      (println (str "test engine:" test-engine))
+      (println (str "test runner:" test-runner))
       (println (str "test sources:" test-sources))
-      (let [result (util/sh test-engine-dir
-                            test-runner-dir
-                            (apply str test-sources))]
+      (println (str "Give slimerjs executable priviledges...."))
+      (make-executable test-engine)
+      (let [result (shell/sh test-engine
+                             test-runner
+                             test-sources)]
+        (println result)
         (println (:out result))
         )
-      )))
+     )
+    fileset))
 
 
 

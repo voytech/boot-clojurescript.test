@@ -1,7 +1,7 @@
  (set-env!
   :source-paths #{ "src/main/clj" "src/main/cljs" }
   :resource-paths #{ "resources" }
-  :test-paths     #{ "src/tests/cljs" }
+  :test-paths     #{ "src/tests/cljs" } ;; if we do not test then test are not compiled
   :dependencies   '[
                     [org.clojure/clojure               "1.6.0" :scope "provided"]
                     [boot/core                         "2.0.0-rc12" :scope "provided"]
@@ -45,7 +45,7 @@
   (set-env! :resource-paths #{"resources"}) ;;something apparently adds src to resrouce-paths - beat it.
   (comp (fileset-log) (fileset-add-tests) (fileset-log)))
 
-(deftask compile-edn []
+(deftask end-2-end[]
    (set-env! :resource-paths #{"resources"}) ;;something apparently adds src to resrouce-paths - beat it.
    (comp (fileset-log)
          (fileset-add-tests)
@@ -53,7 +53,8 @@
          (gen-test-edn)
          (fileset-log)
          (cljs)  ;;ehh compile try it well.
-         (fileset-log) ;;wonder what is the output ?
+         (fileset-log)
+         (test-runner)
          ))
 
 (task-options!
