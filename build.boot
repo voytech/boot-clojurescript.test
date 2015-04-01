@@ -14,53 +14,29 @@
 (require '[adzerk.bootlaces :refer :all]
          '[boot-clojurescript.test.tasks :refer :all]
          '[boot.core :refer :all]
-         '[clojure.walk :refer :all]
          '[adzerk.boot-cljs :refer  :all]
+
 )
 
 (def +version+ "0.1.0-SNAPSHOT")
 
 (bootlaces! +version+)
 
-(declare generate-edn)
 
-(deftask fileset-log []
-  (with-pre-wrap fileset
-    (println "current environment:")
-    (println "----------------------------------------")
-    (println (get-env))
-    (println "----------------------------------------")
-    (println "fileset :")
-    (println "-----------------------------------------")
-    (postwalk #(when (map? %) (when (contains? % :path) (println (:path %))))
-              fileset)
-     fileset
-))
-
-(deftask test-runner-wrapper []
-  (set-env! :resource-paths #{"resources"})
-  (test-runner))
-
-(deftask add-tests-to-fileset []
-  (set-env! :resource-paths #{"resources"}) ;;something apparently adds src to resrouce-paths - beat it.
-  (comp (fileset-log) (fileset-add-tests) (fileset-log)))
-
-(deftask end-2-end[]
+(deftask testing[]
    (set-env! :resource-paths #{"resources"}) ;;something apparently adds src to resrouce-paths - beat it.
-   (comp (fileset-log)
-         (fileset-add-tests)
-         (fileset-log)
-         (gen-test-edn)
-         (fileset-log)
-         (cljs)  ;;ehh compile try it well.
-         (fileset-log)
-         (test-runner)
+   (comp (add-tests)
+         (make-edn)
+         (cljs)
+         (log-fileset)
+         (launch-tests)
          ))
 
 (task-options!
- pom {:project     'voytech/boot-cemerick-clojurescript-test
+ pom {:project     'voytech/boot-clojurescript.test
       :version     +version+
-      :description "Boot task to test ClojureScript namespaces using cemerick's clojurescript.test port."
+      :description "Boot task to test ClojureScript namespaces using framework clojurescript.test (A maximal port of clojure.test)."
       }
- test-runner  {:slimer-version "0.9.5"}
- gen-test-edn {:namespaces #{'mock.sample-test}})
+ ;;cljs {:optimizations :whitespace }
+ launch-tests {:slimer-version "0.9.5"}
+ make-edn     {:namespaces #{'mock.sample-test}})
