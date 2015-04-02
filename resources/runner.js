@@ -111,7 +111,8 @@ for (var i = 1; i < sys.args.length; i++) {
 html = "<html><head>" + html + "</head><body></body></html>";
 fs.write(pagePath, html, 'w');
 console.log("Now opening page "+pagePath);
-p.open("file://" + pagePath, function () {
+
+var page_func = function () {
     //fs.remove(pagePath);
     p.onError = function(msg) {
         var haveCljsTest = p.evaluate(function() {
@@ -142,10 +143,9 @@ p.open("file://" + pagePath, function () {
         }
     };
     p.evaluate(function () {
-        cemerick.cljs.test.set_print_fn_BANG_(function(x) {
-            // using callPhantom to work around https://github.com/laurentj/slimerjs/issues/223
-            window.callPhantom(x.replace(/\n/g, "[NEWLINE]")); // since console.log *itself* adds a newline
-        });
+       cemerick.cljs.test.set_print_fn_BANG_(function(x) {
+       window.callPhantom(x.replace(/\n/g, "[NEWLINE]")); // since console.log *itself* adds a newline
+       });
     });
     // p.evaluate is sandboxed, can't ship closures across;
     // so, a bit of a hack, better than polling :-P
@@ -157,8 +157,9 @@ p.open("file://" + pagePath, function () {
     p.evaluate(function (exitCodePrefix) {
         var results = cemerick.cljs.test.run_all_tests();
         cemerick.cljs.test.on_testing_complete(results, function () {
-            window.alert(exitCodePrefix +
+           window.alert(exitCodePrefix +
                          (cemerick.cljs.test.successful_QMARK_(results) ? 0 : 1));
         });
-    }, exitCodePrefix);
-});
+        },exitCodePrefix);
+}
+p.open("file://" + pagePath,page_func);

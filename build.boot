@@ -28,7 +28,6 @@
    (comp (add-tests)
          (make-edn)
          (cljs)
-         (log-fileset)
          (launch-tests)
          ))
 

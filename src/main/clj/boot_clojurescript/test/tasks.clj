@@ -8,6 +8,8 @@
             [clojure.java.shell :as shell]
             [boot.util :as util]))
 
+(def ^:private JS_TEST_FILE "__TEST__") ;;must be unique across all namespaces
+
 (defn assert-cljs [path]
   (if (re-matches #".+\.cljs.edn$" path)
     (.replaceAll path "\\.cljs.edn$" ".cljs")
@@ -49,7 +51,7 @@
       (util/info "Creating EDN - test.cljs.edn - main test namespace file...\n")
       (core/empty-dir! test-edn-dir)
       (let [{:keys [main cljs]} (deps/scan-fileset fileset)
-            test-edn-file (doto (io/file test-edn-dir "test.cljs.edn") (io/make-parents))]
+            test-edn-file (doto (io/file test-edn-dir (str JS_TEST_FILE ".cljs.edn")) (io/make-parents))]
         (->> (if (seq main) main cljs)
              (mapv #((comp symbol util/path->ns cljs-path->ns core/tmppath) %))
              (concat namespaces) ;;include ns for compilation if not included already
@@ -102,7 +104,7 @@
     (let [inputs (core/input-files fileset)
           test-engine     (file-tmp-path inputs "slimerjs")   ;;hard-coded name! subject to improve!
           test-runner     (file-tmp-path inputs "runner.js")  ;;hard-coded name! subject to improve!
-          test-sources    (file-tmp-path inputs "test.js")]   ;;hard-coded name! subject to improve!
+          test-sources    (file-tmp-path inputs (str JS_TEST_FILE ".js"))] ;;hard-coded name! subject to improve!
       (util/info "Launching tests...\n")
       (util/info (str "test launcher:" test-engine "\n"))
       (util/info (str "test runner:" test-runner "\n"))
