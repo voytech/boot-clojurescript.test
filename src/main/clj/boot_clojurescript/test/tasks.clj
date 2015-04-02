@@ -8,7 +8,10 @@
             [clojure.java.shell :as shell]
             [boot.util :as util]))
 
-(def ^:private JS_TEST_FILE "__TEST__") ;;must be unique across all namespaces
+(defn- time-stamp[]
+  (str (System/currentTimeMillis)))
+
+(def ^:private JS_TEST_FILE (str "test_" (time-stamp))) ;;must be unique across all namespaces
 
 (defn assert-cljs [path]
   (if (re-matches #".+\.cljs.edn$" path)
@@ -88,6 +91,14 @@
        first
        absolute-tmp-path))
 
+(defn- file-tmp-paths [inputs-fileset name]
+ (->> inputs-fileset
+       (core/by-name [name])
+       (filter #(= (str (core/tmpdir %) "/" (core/tmppath %))
+                   (str (core/tmpdir %) "/" name)))
+       first
+       (absolute-tmp-path)))
+
 (defn- make-executable [app]
   (shell/sh "chmod" "777" app)
 )
@@ -104,11 +115,11 @@
     (let [inputs (core/input-files fileset)
           test-engine     (file-tmp-path inputs "slimerjs")   ;;hard-coded name! subject to improve!
           test-runner     (file-tmp-path inputs "runner.js")  ;;hard-coded name! subject to improve!
-          test-sources    (file-tmp-path inputs (str JS_TEST_FILE ".js"))] ;;hard-coded name! subject to improve!
+          test-sources    (file-tmp-paths inputs (str JS_TEST_FILE ".js"))] ;;hard-coded name! subject to improve!
       (util/info "Launching tests...\n")
       (util/info (str "test launcher:" test-engine "\n"))
-      (util/info (str "test runner:" test-runner "\n"))
-      (util/info (str "test sources:" test-sources "\n"))
+      (util/info (str "test runner:"   test-runner "\n"))
+      (util/info (str "test sources:"  test-sources "\n"))
       (make-executable test-engine)
       ;;(setup-slimer)
       (let [result (shell/sh test-engine
