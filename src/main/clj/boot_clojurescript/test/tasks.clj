@@ -23,8 +23,14 @@
       (.replaceAll "\\.cljs$" ""))
 )
 
+(defn- fatal [message]
+  (util/exit-error
+   (do (util/fail message))))
+
+
 (defn- test-paths[]
-  (core/get-env :test-paths))
+  (let [test-paths  (core/get-env :test-paths)]
+    (if (not (nil? test-paths)) test-paths (fatal "Boot environment variable :test-paths is required to execute tests!"))))
 
 (defn- test-paths-abs []
   (map #(str (System/getProperty "user.dir") "/" %)  (test-paths))
@@ -42,7 +48,6 @@
               fileset)
      fileset
 ))
-
 
 (core/deftask make-edn
   "Tasks generates test.cljs.edn which requires all other source namespaces pointed
@@ -91,7 +96,7 @@
        first
        absolute-tmp-path))
 
-(defn- file-tmp-paths [inputs-fileset name]
+(defn- file-at-temp-root [inputs-fileset name]
  (->> inputs-fileset
        (core/by-name [name])
        (filter #(= (str (core/tmpdir %) "/" (core/tmppath %))
@@ -108,14 +113,13 @@
 )
 
 (core/deftask launch-tests
-  [s slimer-version VERSION str   "A version of slimer.js"  ;;I doubt I really need that!
-   f firefox-path FIREFOXPATH str "A file system path to firefox binaries."
+  [f firefox-path FIREFOXPATH str "A file system path to firefox binaries."
    n namespaces NAMESPACES #{sym} "A set of test namespaces"]
   (core/with-pre-wrap fileset
     (let [inputs (core/input-files fileset)
           test-engine     (file-tmp-path inputs "slimerjs")   ;;hard-coded name! subject to improve!
           test-runner     (file-tmp-path inputs "runner.js")  ;;hard-coded name! subject to improve!
-          test-sources    (file-tmp-paths inputs (str JS_TEST_FILE ".js"))] ;;hard-coded name! subject to improve!
+          test-sources    (file-at-temp-root inputs (str JS_TEST_FILE ".js"))] ;;hard-coded name! subject to improve!
       (util/info "Launching tests...\n")
       (util/info (str "test launcher:" test-engine "\n"))
       (util/info (str "test runner:"   test-runner "\n"))

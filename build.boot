@@ -22,20 +22,29 @@
 
 (bootlaces! +version+)
 
-
-(deftask testing[]
+(deftask continous-testing []
    (set-env! :resource-paths #{"resources"}) ;;something apparently adds src to resrouce-paths - beat it.
-   (comp (add-tests)
-         (make-edn)
-         (cljs)
-         (launch-tests)
-         ))
+   (comp (watch) (log-fileset) (cljs-tests))
+)
+
+(deftask testing2 []
+   (set-env! :resource-paths #{"resources"}) ;;something apparently adds src to resrouce-paths - beat it.
+   (comp
+     (add-tests) ;; add test sources to fileset
+     (make-edn)  ;; generate edn files and add to file set
+     (cljs)      ;; clojurescript compile with test namespaces appended.
+     )
+)
+
 
 (task-options!
  pom {:project     'voytech/boot-clojurescript.test
       :version     +version+
       :description "Boot task to test ClojureScript namespaces using framework clojurescript.test (A maximal port of clojure.test)."
       }
- ;;cljs {:optimizations :whitespace }
- launch-tests {:slimer-version "0.9.5"}
+ cljs {
+      ;; :main "mock.sample-test"
+      ;; :output-to "tutaruputa.js"
+       ;;:asset-path "/"
+       }
  make-edn     {:namespaces #{'mock.sample-test}})
