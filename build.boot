@@ -35,7 +35,9 @@
      (cljs)      ;; clojurescript compile with test namespaces appended.
      )
 )
-
+(deftask build-local-install []
+  (set-env! :resource-paths #{"resources" "src/main/clj"})
+  (build-jar))
 
 (task-options!
  pom {:project     'voytech/boot-clojurescript.test
@@ -48,3 +50,5 @@
        ;;:asset-path "/"
        }
  make-edn     {:namespaces #{'mock.sample-test}})
+
+(set-env! :resource-paths #{"resources"})

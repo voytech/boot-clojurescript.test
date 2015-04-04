@@ -36,7 +36,7 @@
   (map #(str (System/getProperty "user.dir") "/" %)  (test-paths))
 )
 
-(core/deftask log-fileset[]
+(core/deftask log-fileset [f fullpath FULLPATH bool "Print full path or just relative path? "]
   (core/with-pre-wrap fileset
     (println "current environment:")
     (println "----------------------------------------")
@@ -44,7 +44,7 @@
     (println "----------------------------------------")
     (println "fileset :")
     (println "-----------------------------------------")
-    (postwalk #(when (map? %) (when (contains? % :path) (println (str (:dir %) "/" (:path %)))))
+    (postwalk #(when (map? %) (when (contains? % :path) (println (str (when (= fullpath true) (:dir %)) "/" (:path %)))))
               fileset)
      fileset
 ))
@@ -142,11 +142,7 @@
 ;; fileset - this can be used for that purpose. Still we need to check
 ;; what was compiled.
 (core/deftask cljs-tests
-  "As long as there is test-paths environment variable test cljs sources and
-   as long as test-paths are not included into fileset class-path by default,
-   we have to add them to file-set classpath and compile them together with
-   other sources. Rationale of introducing test-paths additionally to source-paths
-   was to include test sources to class-path only for tests purposes. "
+  "Adds test sources, creates entry namespace, compiles cljs, executes tests under slimerjs"
   [ns namespaces NAMESPACES #{sym} "A list of test namespaces to include in tests"]
     (comp
      (add-tests) ;; add test sources to fileset
