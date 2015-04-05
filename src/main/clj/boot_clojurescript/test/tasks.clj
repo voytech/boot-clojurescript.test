@@ -1,12 +1,18 @@
 (ns boot-clojurescript.test.tasks
   (:require [boot.core :as core]
             [boot.file :as file]
+            [boot.tmpdir :as tmpdir]
             [adzerk.boot-cljs :refer  :all]
             [adzerk.boot-cljs.js-deps :as deps]
             [clojure.java.io :as io]
             [clojure.walk :refer :all]
             [clojure.java.shell :as shell]
-            [boot.util :as util]))
+            [boot.util :as util])
+ (:import
+  [java.io File FileOutputStream]
+  [java.util.zip ZipEntry ZipInputStream ZipException]
+  [java.util.jar JarEntry JarInputStream Manifest Attributes$Name]))
+
 
 (defn- time-stamp[]
   (str (System/currentTimeMillis)))
@@ -85,19 +91,22 @@
                 core/commit!)                     ;; commit to fileset
             )))
 
-(defn absolute-tmp-path [file]
-  (->> file
-       ((juxt core/tmpdir core/tmppath))
-       (clojure.string/join "/")))
+(defn- absolute-tmp-path [file]
+  (let [tmp? (partial satisfies? tmpdir/ITmpFile)]
+    (if (tmp? file)
+      (->> file
+           ((juxt core/tmpdir core/tmppath))
+           (clojure.string/join "/"))
+      (.getPath file))))
 
-(defn- file-tmp-path [inputs-fileset name]
-  (->> inputs-fileset
+(defn- file-tmp-path [inputs-files name]
+  (->> inputs-files
        (core/by-name [name])
        first
        absolute-tmp-path))
 
-(defn- file-at-temp-root [inputs-fileset name]
- (->> inputs-fileset
+(defn- file-at-temp-root [inputs-files name]
+ (->> inputs-files
        (core/by-name [name])
        (filter #(= (str (core/tmpdir %) "/" (core/tmppath %))
                    (str (core/tmpdir %) "/" name)))
@@ -112,27 +121,66 @@
   (shell/sh "export SLIMERJSLAUNCHER=/usr/bin/firefox")
 )
 
+(defn- this-local-repo-location [mvn-repo]
+  (str (if (nil? mvn-repo) (str (System/getenv "HOME") "/.m2/repository/") mvn-repo) "voytech/boot-clojurescript.test/0.1.0-SNAPSHOT/"  )
+)
+;;I think it is safe to assume we have got .m2 and repository folder somewhere.
+;;For linux it should be in home dir of user, Need to handle other system cases.
+;;In local repository there should be always artifact of this project installed.
+;;we can take slimer resource from jar and copy it to working temp directory,
+;;but I think we do not need slimerjs on fileset - so just copy to temp dir, remember temp
+;; dir path and execute it.
+;; boot-clojurescript.test-0.1.0-SHANPSHOT.jar
+
+(defn provide-launcher-in [execution-tmp-dir mvn-repo]
+  (core/empty-dir! execution-tmp-dir)
+  (let [jar-path (this-local-repo-location mvn-repo)]
+    (file/copy-files jar-path execution-tmp-dir)
+    (let [jars (core/by-ext [".jar"] (file-seq execution-tmp-dir))]
+      (doseq [jar jars]
+        (with-open [stream (JarInputStream. (io/input-stream jar))]
+          (loop [jar-entry (.getNextEntry stream)]
+            (when (not (nil? jar-entry))
+              (do
+                (let [entry-name (.getName jar-entry)
+                      dest-entry (io/file execution-tmp-dir entry-name)]
+                  (if (.isDirectory jar-entry)
+                    (do
+                      (.closeEntry stream))
+                    (do
+                      (io/make-parents dest-entry)
+                      (with-open [output-stream (FileOutputStream. dest-entry)]
+                        (io/copy stream output-stream)
+                        (.closeEntry stream))))
+                  (recur (.getNextEntry stream)))))))))))
+
+
 (core/deftask launch-tests
   [f firefox-path FIREFOXPATH str "A file system path to firefox binaries."
-   n namespaces NAMESPACES #{sym} "A set of test namespaces"]
-  (core/with-pre-wrap fileset
-    (let [inputs (core/input-files fileset)
-          test-engine     (file-tmp-path inputs "slimerjs")   ;;hard-coded name! subject to improve!
-          test-runner     (file-tmp-path inputs "runner.js")  ;;hard-coded name! subject to improve!
-          test-sources    (file-at-temp-root inputs (str JS_TEST_FILE ".js"))] ;;hard-coded name! subject to improve!
-      (util/info "Launching tests...\n")
-      (util/info (str "test launcher:" test-engine "\n"))
-      (util/info (str "test runner:"   test-runner "\n"))
-      (util/info (str "test sources:"  test-sources "\n"))
-      (make-executable test-engine)
-      ;;(setup-slimer)
-      (let [result (shell/sh test-engine
-                             test-runner
-                             test-sources)]
-        (println (:out result))
+   n namespaces NAMESPACES #{sym} "A set of test namespaces"
+   m maven-repo MAVENREPO str     "A path to maven repository to look for boot-clojurescript resources"]
+  (let [exec-dir (core/temp-dir!)]
+    (core/with-pre-wrap fileset
+      (provide-launcher-in exec-dir maven-repo)
+      (let [inputs (core/input-files fileset)
+            m2-artifact (file-seq exec-dir)
+            inputs-ext (concat inputs m2-artifact)
+            test-engine     (file-tmp-path inputs-ext "slimerjs")   ;;hard-coded name! subject to improve!
+            test-runner     (file-tmp-path inputs-ext "runner.js")  ;;hard-coded name! subject to improve!
+            test-sources    (file-at-temp-root inputs (str JS_TEST_FILE ".js"))] ;;hard-coded name! subject to improve!
+        (util/info "Launching tests...\n")
+        (util/info (str "test launcher:" test-engine "\n"))
+        (util/info (str "test runner:"   test-runner "\n"))
+        (util/info (str "test sources:"  test-sources "\n"))
+        (make-executable test-engine)
+        ;;(setup-slimer)
+        (let [result (shell/sh test-engine
+                               test-runner
+                               test-sources)]
+          (println (:out result))
+          )
         )
-     )
-    fileset))
+      fileset)))
 
 
 
@@ -143,7 +191,8 @@
 ;; what was compiled.
 (core/deftask cljs-tests
   "Adds test sources, creates entry namespace, compiles cljs, executes tests under slimerjs"
-  [ns namespaces NAMESPACES #{sym} "A list of test namespaces to include in tests"]
+  [n namespaces NAMESPACES #{sym} "A list of test namespaces to include in tests"
+   m maven-repo MAVENREPO str     "A path to maven repository to look for boot-clojurescript resources"]
     (comp
      (add-tests) ;; add test sources to fileset
      (make-edn)      ;; generate edn files and add to file set
