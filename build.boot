@@ -23,15 +23,7 @@
 (set-env! :resource-paths #{"resources"}) ;;bootlaces have hardcoded path to src in resources. It follows common convetion rule but sometimes can brake things.
 
 (deftask continous-testing []
-   (comp (watch) (log-fileset) (cljs-tests))
-)
-
-(deftask testing2 []
-   (comp
-     (add-tests) ;; add test sources to fileset
-     (make-edn)  ;; generate edn files and add to file set
-     (cljs)      ;; clojurescript compile with test namespaces appended.
-     )
+   (comp (watch) (cljs-tests))
 )
 
 (deftask build-local-install []
@@ -48,4 +40,4 @@
       ;; :output-to "tutaruputa.js"
        ;;:asset-path "/"
       }
- make-edn  {:namespaces #{'mock.sample-test}})
+ cljs-tests {:namespaces #{'mock.sample-test}})
