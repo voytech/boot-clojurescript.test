@@ -7,7 +7,8 @@
             [clojure.java.io :as io]
             [clojure.walk :refer :all]
             [clojure.java.shell :as shell]
-            [boot.util :as util])
+            [boot.util :as util]
+            [clojure.set :refer :all])
  (:import
   [java.io File FileOutputStream]
   [java.util.zip ZipEntry ZipInputStream ZipException]
@@ -57,7 +58,7 @@
 
 (core/deftask make-shim-edn
   "Tasks generates .cljs.edn which requires all other source namespaces
-   from fileset. This task creates a bootstrap shim to be places as script
+   from fileset. This task creates a bootstrap shim to be placed as script
    in html page."
   [n namespaces NAMESPACES #{sym} "A list of test namespaces to include in tests"
    f edn-name   EDNNAME      str  "Name of target cljs.edn file"
@@ -68,11 +69,13 @@
       (util/info (str "Creating EDN - " file-name ".cljs.edn - entry point namespace shim file...\n"))
       (core/empty-dir! edn-dir)
       (let [{:keys [cljs]} (deps/scan-fileset fileset)
+            to-exclude (if (nil? excludes) #{} excludes)
             edn-file (doto (io/file edn-dir (str file-name ".cljs.edn")) (io/make-parents))]
         (->> cljs
              (mapv #((comp symbol util/path->ns cljs-path->ns core/tmppath) %))
              (concat namespaces) ;;include ns for compilation if not included already
              (set)               ;;distinct elements required.
+             ((fn [excl curr] (difference curr excl)) to-exclude) ;;hehe this is weird but I had to swap arguments to match ->> macro :(
              (apply vector)      ;;I think .edn expects namespaces to be defined as vector.
              (assoc {} :require)
              (spit edn-file))
@@ -163,9 +166,10 @@
    and path to compiled clojurescript shim for those sources
    (An entry point to put as script in page)
    launch test runner using lightweight slimerjs"
-  [f firefox-path FIREFOXPATH str "A file system path to firefox binaries."
-   n namespaces NAMESPACES #{sym} "A set of test namespaces"
-   m maven-repo MAVENREPO str     "A path to maven repository to look for boot-clojurescript resources"]
+  [f firefox-path FIREFOXPATH str     "A file system path to firefox binaries."
+   n namespaces   NAMESPACES  #{sym}  "A set of test namespaces"
+   s shim-script  SHIMSCRIPT  str     "Optional name of shim test file. Fileset will be searched for that file to be passed to test runner"
+   m maven-repo   MAVENREPO   str     "A path to maven repository to look for boot-clojurescript resources"]
   (let [exec-dir (core/temp-dir!)]
     (core/with-pre-wrap fileset
       (provide-launcher-in exec-dir maven-repo)
